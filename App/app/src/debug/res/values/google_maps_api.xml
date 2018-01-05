@@ -1,0 +1,26 @@
+ <resources>
+    <!--
+    TODO: Before you run your application, you need a Google Maps API key.
+
+    To get one, follow this link, follow the directions and press "Create" at the end:
+
+    https://console.developers.google.com/flows/enableapi?apiid=maps_android_backend&keyType=CLIENT_SIDE_ANDROID&r=53:86:2A:26:AB:38:99:E1:48:5A:FE:5D:86:21:74:4C:59:73:BF:7C%3Bnavigo.app
+
+    You can also add your credentials to an existing key, using these values:
+
+    Package name:
+    53:86:2A:26:AB:38:99:E1:48:5A:FE:5D:86:21:74:4C:59:73:BF:7C
+
+    SHA-1 certificate fingerprint:
+    53:86:2A:26:AB:38:99:E1:48:5A:FE:5D:86:21:74:4C:59:73:BF:7C
+
+    Alternatively, follow the directions here:
+    https://developers.google.com/maps/documentation/android/start#get-key
+
+    Once you have your key (it starts with "AIza"), replace the "google_maps_key"
+    string in this file.
+    -->
+    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">
+        AIzaSyB2AmdZ3ukl0r0lH8GGIv7jXLnlY1Hq9L0
+    </string>
+</resources>
