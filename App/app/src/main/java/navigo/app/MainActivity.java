@@ -48,5 +48,6 @@ public class MainActivity extends AppCompatActivity {
      */
 
   //тест для gitHub
+    // commit to master
 
 }
