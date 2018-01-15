@@ -16,13 +16,25 @@ public class DBHelper extends SQLiteOpenHelper {
 
     public DBHelper(Context context) {
         // конструктор суперкласса
-        super(context, "navigo", null, 1);
+        super(context, "navigo", null, MainActivity.dbVersion);
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        // создаем таблицу с полями
-        Log.d(LOG, "делаем запрос");
+        // создаем таблицу при самом первом запуске
+        createTable(db);
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        Log.d(LOG, "старая версия - " + oldVersion + ", новая - " + newVersion);
+      if(oldVersion < newVersion){
+          createTable(db);
+      }
+    }
+
+    private void createTable(SQLiteDatabase db){
+        Log.d(LOG, "создание таблицы " + MainActivity.cityName);
         db.execSQL("create table "+ MainActivity.cityName + " ("
                 + "id integer primary key autoincrement,"
                 + "name text,"
@@ -38,9 +50,15 @@ public class DBHelper extends SQLiteOpenHelper {
                 + "version integer" + ");");
     }
 
-    @Override
-    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+    //???
+    private void updateTable(SQLiteDatabase db){
 
     }
+
+    //удаление ненужной таблицы
+    public void dropTable(SQLiteDatabase db){
+        db.execSQL("drop table "+ MainActivity.cityName);
+    }
+
 
 }

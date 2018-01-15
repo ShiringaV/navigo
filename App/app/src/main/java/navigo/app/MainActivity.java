@@ -2,12 +2,13 @@ package navigo.app;
 
 
 import android.content.ContentValues;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -30,7 +31,9 @@ public class MainActivity extends AppCompatActivity {
     TextView textInfo;
     ProgressBar bar;
     public static String cityName = "odessa";   //название города - опредиляется координатами
+    public static int dbVersion;
     DBHelper dbHelper;
+    SharedPreferences sPref;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,7 +42,6 @@ public class MainActivity extends AppCompatActivity {
 
         textInfo = (TextView) findViewById(R.id.textInfo);
         bar = (ProgressBar) findViewById(R.id.progressBar);
-        dbHelper = new DBHelper(this);
 
         //TODO определяем координаты с LocationSingleton
 
@@ -47,6 +49,30 @@ public class MainActivity extends AppCompatActivity {
         //ресурс = https://developer.android.com/reference/android/location/Geocoder.html
 
         //TODO Проверка - если уже существует бд с таким городом, то сразу переходим к карте
+        Log.d(LOG, "проверка файла");
+        sPref = getPreferences(MODE_PRIVATE);
+            String currentCity = sPref.getString(cityName, "");
+            SharedPreferences.Editor writeData = sPref.edit();
+            if(currentCity == ""){
+                Log.d(LOG, "файл пуст, идет создание...");
+                writeData.putString(cityName, "данные по городу " + cityName + " существуют");
+                //текущая версия бд
+                String getVersion = sPref.getString("dataBase", "");
+                if(getVersion == ""){
+                    //если версии нет, то установим ее
+                    writeData.putString("dataBase", "1");
+                    dbVersion = 1;
+                    Log.d(LOG, "Первая установка. Текущая версия = " + dbVersion);
+                }
+                else {
+                    //иначе меняем старую версию
+                    dbVersion = Integer.parseInt(getVersion) + 1;
+                    writeData.putString("dataBase", String.valueOf(dbVersion));
+                    Log.d(LOG, "Текущая версия = " + dbVersion);
+                }
+                writeData.commit();
+                dbHelper = new DBHelper(this);
+                textInfo.setText("Идет установка данных");
 
         //TODO отправить запрос на сервер например http://www.navigo.ga/data/odessa
         //В результате мы получим JSON строку
@@ -72,8 +98,8 @@ public class MainActivity extends AppCompatActivity {
                try{
                    Log.d(LOG, "идет создание бд");
                    textInfo.setText("Создаем таблицу" + cityName);
-                   //TODO Создать SQL таблицы (если это первый запуск)
-                   //только после того как получим название города что назвать таблицу (data_odessa)
+                   //TODO Создать SQL таблицы (если это первый запуск или такой таблицы нет)
+                   //только после того как получим название города что бы назвать таблицу (data_odessa)
                    ContentValues dbValue = new ContentValues();
                    SQLiteDatabase db = dbHelper.getWritableDatabase();
                    bar.setProgress(50);
@@ -115,11 +141,12 @@ public class MainActivity extends AppCompatActivity {
                        dbValue.put("count_people", count_people);
                        dbValue.put("summ_mark", summ_mark);
                        dbValue.put("comment", comment);
-                       //dbValue.put("version", version);
-                       long rowID = db.insert(cityName, null, dbValue);
-                       Log.d(LOG, "строка добавлена, id = " +rowID);
-                       bar.setProgress(100);
+                       dbValue.put("version", "null");
+
+                           long rowID = db.insert(cityName, null, dbValue);
+                           Log.d(LOG, "строка добавлена, id = " + rowID);
                    }
+                   bar.setProgress(100);
                    //выводим дынные в консоль
                    viewDataBase(db);
                }
@@ -137,9 +164,17 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         queue.add(stringRequest);
+                nextActivity();
+            }
+            else {
+                Log.d(LOG, cityName + ": " + currentCity);
+                textInfo.setText("данные по городу " + cityName + " установлены");
+                bar.setProgress(100);
+                //Log.d(LOG, "проверка");
+               //TODO проверка новых данных с сервера с существующии в SQLite
 
-        //TODO стественно делаем на всё проверки и если всё ок переходим intend-ом в следующие активити с картой
-
+                nextActivity();
+            }
 
     /*
     Некоторые разъяснения:
@@ -147,9 +182,26 @@ public class MainActivity extends AppCompatActivity {
     Пользователь будет видеть только логотип и статус бар который будет показывать состояние загрузки данных
     При последующем запуске загрузки уже не будет (приложение запустится быстрее)
 
-    Чтобы наш главный экран не логал весь слодный код будем осуществлять в отдельном потоке
-
      */
+    }
+
+    //переход к следующиму активити
+    public  void  nextActivity(){
+        Intent intent = new Intent(this, MapsActivity.class);
+        startActivity(intent);
+    }
+
+    // просмотреть все таблицы бд
+    public  void viewTables(SQLiteDatabase db){
+        Cursor c = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null);
+
+        if (c.moveToFirst()) {
+            while ( !c.isAfterLast() ) {
+               Log.d(LOG, c.getString(0));
+                c.moveToNext();
+            }
+        }
+
     }
     //метод который выводит всю бд в консоль
     public void viewDataBase(SQLiteDatabase db){
