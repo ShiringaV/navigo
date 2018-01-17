@@ -7,7 +7,7 @@ import android.util.Log;
 
 
 /**
- * Created by ASUS 553 on 09.01.2018.
+ * Created by Vlad Malakeev on 09.01.2018.
  */
 
 public class DBHelper extends SQLiteOpenHelper {
@@ -27,9 +27,12 @@ public class DBHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        Log.d(LOG, "старая версия - " + oldVersion + ", новая - " + newVersion);
       if(oldVersion < newVersion){
+          Log.d(LOG, "старая версия - " + oldVersion + ", новая - " + newVersion);
           createTable(db);
+      }
+      else {
+          Log.d(LOG, "база не поменялась");
       }
     }
 
@@ -50,10 +53,6 @@ public class DBHelper extends SQLiteOpenHelper {
                 + "version integer" + ");");
     }
 
-    //???
-    private void updateTable(SQLiteDatabase db){
-
-    }
 
     //удаление ненужной таблицы
     public void dropTable(SQLiteDatabase db){

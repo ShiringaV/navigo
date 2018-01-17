@@ -23,6 +23,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.concurrent.TimeUnit;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -30,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
     final String LOG = "myLog";   //константа для логов
     TextView textInfo;
     ProgressBar bar;
-    public static String cityName = "odessa";   //название города - опредиляется координатами
+    public static String cityName;   //название города - опредиляется координатами
     public static int dbVersion;
     DBHelper dbHelper;
     SharedPreferences sPref;
@@ -43,6 +45,12 @@ public class MainActivity extends AppCompatActivity {
         textInfo = (TextView) findViewById(R.id.textInfo);
         bar = (ProgressBar) findViewById(R.id.progressBar);
 
+        cityName = "odessa";
+        RequestQueue queue = Volley.newRequestQueue(this);
+        //адрес куда отправляем запрос + название опредилившегося города
+        String url = "http://navigo.zzz.com.ua/index.php?city=" + cityName;
+
+
         //TODO определяем координаты с LocationSingleton
 
         //TODO Определяем город (получаем String sity), это делается с помощью  GeoCoder
@@ -53,34 +61,35 @@ public class MainActivity extends AppCompatActivity {
         sPref = getPreferences(MODE_PRIVATE);
             String currentCity = sPref.getString(cityName, "");
             SharedPreferences.Editor writeData = sPref.edit();
-            if(currentCity == ""){
+        //текущая версия бд
+            String getVersion = sPref.getString("dataBase", "");
+            if(getVersion == ""){
+                //если версии нет, то установим ее
+                writeData.putString("dataBase", "1");
+               // dbVersion = 1;
+                Log.d(LOG, "Первая установка. Текущая версия = " + dbVersion);
+            }
+
+            if(currentCity != "") {
+                Log.d(LOG, "удаляем таблицу");
+                dbVersion = Integer.parseInt(sPref.getString("dataBase",""));
+                dbHelper = new DBHelper(this);
+                SQLiteDatabase db = dbHelper.getWritableDatabase();
+                dbHelper.dropTable(db);
+            }
                 Log.d(LOG, "файл пуст, идет создание...");
                 writeData.putString(cityName, "данные по городу " + cityName + " существуют");
-                //текущая версия бд
-                String getVersion = sPref.getString("dataBase", "");
-                if(getVersion == ""){
-                    //если версии нет, то установим ее
-                    writeData.putString("dataBase", "1");
-                    dbVersion = 1;
-                    Log.d(LOG, "Первая установка. Текущая версия = " + dbVersion);
-                }
-                else {
-                    //иначе меняем старую версию
-                    dbVersion = Integer.parseInt(getVersion) + 1;
-                    writeData.putString("dataBase", String.valueOf(dbVersion));
-                    Log.d(LOG, "Текущая версия = " + dbVersion);
-                }
-                writeData.commit();
+                //иначе меняем старую версию
+                dbVersion = Integer.parseInt(sPref.getString("dataBase",""))+1;
+                writeData.putString("dataBase", String.valueOf(dbVersion));
+                Log.d(LOG, "Текущая версия = " + dbVersion);
+
                 dbHelper = new DBHelper(this);
                 textInfo.setText("Идет установка данных");
 
         //TODO отправить запрос на сервер например http://www.navigo.ga/data/odessa
         //В результате мы получим JSON строку
 
-        RequestQueue queue = Volley.newRequestQueue(this);
-
-        //адрес куда отправляем запрос + название опредилившегося города
-        String url = "http://navigo.zzz.com.ua/index.php?city=" + cityName;
         textInfo.setText("Пытамеся подключиться к серверу");
         bar.setProgress(0);
         Log.d(LOG, "Пытаемся подключиться к серверу");
@@ -110,7 +119,6 @@ public class MainActivity extends AppCompatActivity {
 
                    for(int i = 0; i < city.length();i++ ){
                        //Следущие дынные будут писаться в базу SQLite
-                      // int id = city.getJSONObject(i).getInt("id");
                        String name = city.getJSONObject(i).getString("name");               //название достопримечательности
                        String type = city.getJSONObject(i).getString("type");               //тип достопримечательности
                        String lat = city.getJSONObject(i).getString("lat");                 //широта
@@ -121,7 +129,6 @@ public class MainActivity extends AppCompatActivity {
                        int count_people = city.getJSONObject(i).getInt("count_people"); //количество проголосовавших людей
                        int summ_mark = city.getJSONObject(i).getInt("summ_mark");     //общая сумма голосов
                        String comment = city.getJSONObject(i).getString("comment");     //комментарии
-                      // int version = city.getJSONObject(i).getInt("version");           //версия
 
                        Log.d(LOG, "Данные с сервера: "  +
                                   " Название: " + name +
@@ -149,6 +156,7 @@ public class MainActivity extends AppCompatActivity {
                    bar.setProgress(100);
                    //выводим дынные в консоль
                    viewDataBase(db);
+                   viewTables(db);
                }
                catch (JSONException e){
                    textInfo.setText("Ошибка");
@@ -161,20 +169,13 @@ public class MainActivity extends AppCompatActivity {
             public void onErrorResponse(VolleyError error) {
                 textInfo.setText("Ошибка соединения");
                 Log.d(LOG, "Ошибка" + error.toString());
+              nextActivity();
             }
         });
         queue.add(stringRequest);
-                nextActivity();
-            }
-            else {
-                Log.d(LOG, cityName + ": " + currentCity);
-                textInfo.setText("данные по городу " + cityName + " установлены");
-                bar.setProgress(100);
-                //Log.d(LOG, "проверка");
-               //TODO проверка новых данных с сервера с существующии в SQLite
-
-                nextActivity();
-            }
+                writeData.commit();
+        textInfo.setText("Готово");
+            nextActivity();
 
     /*
     Некоторые разъяснения:
@@ -184,6 +185,10 @@ public class MainActivity extends AppCompatActivity {
 
      */
     }
+
+
+
+
 
     //переход к следующиму активити
     public  void  nextActivity(){
