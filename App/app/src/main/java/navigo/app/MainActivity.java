@@ -1,14 +1,19 @@
 package navigo.app;
 
-
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -23,19 +28,25 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.concurrent.TimeUnit;
 
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener{
 
-
-    final String LOG = "myLog";   //константа для логов
+    final static String LOG = "myLog";   //константа для логов
+    public static String cityName;      //название города - опредиляется координатами
+    public static int dbVersion = 1;    //версия бд, default = 1
+    String url;                         //наш домен
     TextView textInfo;
+    ImageView errorImage;
     ProgressBar bar;
-    public static String cityName;   //название города - опредиляется координатами
-    public static int dbVersion;
-    DBHelper dbHelper;
+    Button btnYes, btnNo;
+
     SharedPreferences sPref;
+    boolean online;                     //проверка сети
+    boolean first = false;              //первый запуск приложения
+
+    DBHelper dbHelper;
+    SQLiteDatabase db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,124 +55,168 @@ public class MainActivity extends AppCompatActivity {
 
         textInfo = (TextView) findViewById(R.id.textInfo);
         bar = (ProgressBar) findViewById(R.id.progressBar);
+        bar.setVisibility(View.INVISIBLE);
+        errorImage = (ImageView) findViewById(R.id.error);
+        errorImage.setVisibility(View.INVISIBLE);
+        btnYes = (Button) findViewById(R.id.buttonYes);
+        btnYes.setText("Да, установить");
+        btnYes.setVisibility(View.INVISIBLE);
+        btnNo = (Button) findViewById(R.id.buttonNo);
+        btnNo.setText("Нет, спасибо");
+        btnNo.setVisibility(View.INVISIBLE);
 
         cityName = "odessa";
-        RequestQueue queue = Volley.newRequestQueue(this);
-        //адрес куда отправляем запрос + название опредилившегося города
-        String url = "http://navigo.zzz.com.ua/index.php?city=" + cityName;
+        url = "http://navigo.zzz.com.ua/index.php?city=" + cityName;
+        online = isOnline(this);
 
-
-        //TODO определяем координаты с LocationSingleton
-
-        //TODO Определяем город (получаем String sity), это делается с помощью  GeoCoder
-        //ресурс = https://developer.android.com/reference/android/location/Geocoder.html
-
-        //TODO Проверка - если уже существует бд с таким городом, то сразу переходим к карте
-        Log.d(LOG, "проверка файла");
         sPref = getPreferences(MODE_PRIVATE);
-            String currentCity = sPref.getString(cityName, "");
-            SharedPreferences.Editor writeData = sPref.edit();
-        //текущая версия бд
-            String getVersion = sPref.getString("dataBase", "");
-            if(getVersion == ""){
-                //если версии нет, то установим ее
+        SharedPreferences.Editor writeData = sPref.edit();
+
+        Log.d(LOG, "проверка на первый запуск");
+        String getVersion = sPref.getString("dataBase", "");
+
+        if (getVersion == "") {
+            Log.d(LOG, "Первая установка. Текущая версия = " + dbVersion);
+            if (online == false) {
+                errorImage.setVisibility(View.VISIBLE);
+                textInfo.setText("Первый запуск, нет интернета!!!");
+                Log.d(LOG, "Первый запуск, нет интернета!!!");
+                first = true;
+            } else{
                 writeData.putString("dataBase", "1");
-               // dbVersion = 1;
-                Log.d(LOG, "Первая установка. Текущая версия = " + dbVersion);
+                writeData.commit();
             }
 
-            if(currentCity != "") {
+        } else {
+            dbVersion = Integer.parseInt(getVersion);
+        }
+
+        if (online == true) {
+            Log.d(LOG, "Есть интернет");
+            String currentCity = sPref.getString(cityName, "");
+
+            if (currentCity != "") {
                 Log.d(LOG, "удаляем таблицу");
-                dbVersion = Integer.parseInt(sPref.getString("dataBase",""));
+                dbVersion = Integer.parseInt(sPref.getString("dataBase", ""));
                 dbHelper = new DBHelper(this);
-                SQLiteDatabase db = dbHelper.getWritableDatabase();
+                db = dbHelper.getWritableDatabase();
                 dbHelper.dropTable(db);
+                serverConnect();
+            } else {
+                Log.d(LOG, "Установить карту?");
+                textInfo.setText("Установить offline карту города " + cityName + "?" );
+                btnYes.setVisibility(View.VISIBLE);
+                btnNo.setVisibility(View.VISIBLE);
+                btnYes.setOnClickListener(this);
+                btnNo.setOnClickListener(this);
+
             }
-                Log.d(LOG, "файл пуст, идет создание...");
-                writeData.putString(cityName, "данные по городу " + cityName + " существуют");
-                //иначе меняем старую версию
-                dbVersion = Integer.parseInt(sPref.getString("dataBase",""))+1;
-                writeData.putString("dataBase", String.valueOf(dbVersion));
-                Log.d(LOG, "Текущая версия = " + dbVersion);
 
-                dbHelper = new DBHelper(this);
-                textInfo.setText("Идет установка данных");
 
-        //TODO отправить запрос на сервер например http://www.navigo.ga/data/odessa
-        //В результате мы получим JSON строку
+        } else {
+            Log.d(LOG, "нет сети, данные есть");
+            if (first == false) {
+                nextActivity();
+            }
+        }
 
-        textInfo.setText("Пытамеся подключиться к серверу");
-        bar.setProgress(0);
+    }
+
+    @Override
+    public  void onClick(View v){
+        switch (v.getId()) {
+            case R.id.buttonYes:
+                Log.d(LOG, "Идет установка карты");
+                textInfo.setText("Идет установка карты");
+                bar.setVisibility(View.VISIBLE);
+                    bar.setProgress(100);
+                    SystemClock.sleep(500);
+
+                serverConnect();
+                break;
+            case R.id.buttonNo:
+                Log.d(LOG, "Не устанавливать");
+                textInfo.setText("Только online карты");
+                serverConnect();
+                break;
+        }
+    }
+
+    private void serverConnect(){
+        sPref = getPreferences(MODE_PRIVATE);
+        SharedPreferences.Editor writeData = sPref.edit();
+
+        Log.d(LOG, "файл пуст, идет создание...");
+        writeData.putString(cityName, "данные по городу " + cityName + " существуют");
+        dbVersion = Integer.parseInt(sPref.getString("dataBase", "")) + 1;
+        writeData.putString("dataBase", String.valueOf(dbVersion));
+        Log.d(LOG, "Текущая версия = " + dbVersion);
+
+        dbHelper = new DBHelper(this);
+
         Log.d(LOG, "Пытаемся подключиться к серверу");
+        RequestQueue queue = Volley.newRequestQueue(this);
+
         StringRequest stringRequest = new StringRequest(Request.Method.GET, url, new Response.Listener<String>() {
             @Override
             public void onResponse(String response) {
                 JSONObject jsonObject;
                 String[] array_result = response.split("end_json_string");
                 String result = array_result[0];
-
                 Log.d(LOG, "Ответ сервера " + result.toString());
-                textInfo.setText("Данные от сервера получены");
-                bar.setProgress(10);
-                //извлекаем двнные из json строки
-               try{
-                   Log.d(LOG, "идет создание бд");
-                   textInfo.setText("Создаем таблицу" + cityName);
-                   //TODO Создать SQL таблицы (если это первый запуск или такой таблицы нет)
-                   //только после того как получим название города что бы назвать таблицу (data_odessa)
-                   ContentValues dbValue = new ContentValues();
-                   SQLiteDatabase db = dbHelper.getWritableDatabase();
-                   bar.setProgress(50);
-                   //TODO распарсить JSON код в массив
-                   Log.d(LOG, "создание JSON объекта");
-                   jsonObject = new JSONObject(result);
-                   JSONArray city = jsonObject.getJSONArray(cityName);
 
-                   for(int i = 0; i < city.length();i++ ){
-                       //Следущие дынные будут писаться в базу SQLite
-                       String name = city.getJSONObject(i).getString("name");               //название достопримечательности
-                       String type = city.getJSONObject(i).getString("type");               //тип достопримечательности
-                       String lat = city.getJSONObject(i).getString("lat");                 //широта
-                       String lon = city.getJSONObject(i).getString("lon");                 //долгота
-                       String descript = city.getJSONObject(i).getString("descript");       //описание
-                       String image = city.getJSONObject(i).getString("image");             //путь к картинке
-                       String video = city.getJSONObject(i).getString("video");             //путь к видео
-                       int count_people = city.getJSONObject(i).getInt("count_people"); //количество проголосовавших людей
-                       int summ_mark = city.getJSONObject(i).getInt("summ_mark");     //общая сумма голосов
-                       String comment = city.getJSONObject(i).getString("comment");     //комментарии
+                try {
+                    Log.d(LOG, "идет создание бд");
+                    ContentValues dbValue = new ContentValues();
+                    db = dbHelper.getWritableDatabase();
 
-                       Log.d(LOG, "Данные с сервера: "  +
-                                  " Название: " + name +
-                                  ", Тип: " + type +
-                                  ", Широта: " + lat +
-                                  ", Долгота:" + lon +
-                                  ", Описание: " + descript + "...");
-                       //TODO заполняем таблицу данными из полученного массива
-                       textInfo.setText("Заполняем таблицу данными");
-                       dbValue.put("name", name);
-                       dbValue.put("type", type);
-                       dbValue.put("lat", lat);
-                       dbValue.put("lon", lon);
-                       dbValue.put("descript", descript);
-                       dbValue.put("image", image);
-                       dbValue.put("video", video);
-                       dbValue.put("count_people", count_people);
-                       dbValue.put("summ_mark", summ_mark);
-                       dbValue.put("comment", comment);
-                       dbValue.put("version", "null");
+                    Log.d(LOG, "создание JSON объекта");
+                    jsonObject = new JSONObject(result);
+                    JSONArray city = jsonObject.getJSONArray(cityName);
 
-                           long rowID = db.insert(cityName, null, dbValue);
-                           Log.d(LOG, "строка добавлена, id = " + rowID);
-                   }
-                   bar.setProgress(100);
-                   //выводим дынные в консоль
-                   viewDataBase(db);
-                   viewTables(db);
-               }
-               catch (JSONException e){
-                   textInfo.setText("Ошибка");
-                   Log.d(LOG, e.toString());
-               }
+                    for (int i = 0; i < city.length(); i++) {
+                        //Следущие дынные будут писаться в базу SQLite
+                        String name = city.getJSONObject(i).getString("name");               //название достопримечательности
+                        String type = city.getJSONObject(i).getString("type");               //тип достопримечательности
+                        String lat = city.getJSONObject(i).getString("lat");                 //широта
+                        String lon = city.getJSONObject(i).getString("lon");                 //долгота
+                        String descript = city.getJSONObject(i).getString("descript");       //описание
+                        String image = city.getJSONObject(i).getString("image");             //путь к картинке
+                        String video = city.getJSONObject(i).getString("video");             //путь к видео
+                        int count_people = city.getJSONObject(i).getInt("count_people");     //количество проголосовавших людей
+                        int summ_mark = city.getJSONObject(i).getInt("summ_mark");           //общая сумма голосов
+                        String comment = city.getJSONObject(i).getString("comment");         //комментарии
+
+                        Log.d(LOG, "Данные с сервера: " +
+                                " Название: " + name +
+                                ", Тип: " + type +
+                                ", Широта: " + lat +
+                                ", Долгота:" + lon +
+                                ", Описание: " + descript + "...");
+
+                        dbValue.put("name", name);
+                        dbValue.put("type", type);
+                        dbValue.put("lat", lat);
+                        dbValue.put("lon", lon);
+                        dbValue.put("descript", descript);
+                        dbValue.put("image", image);
+                        dbValue.put("video", video);
+                        dbValue.put("count_people", count_people);
+                        dbValue.put("summ_mark", summ_mark);
+                        dbValue.put("comment", comment);
+                        dbValue.put("version", "null");
+
+                        long rowID = db.insert(cityName, null, dbValue);
+                        Log.d(LOG, "строка добавлена, id = " + rowID);
+                    }
+
+                    dbHelper.viewDataBase(db, true, false);
+                    dbHelper.viewTables(db);
+
+                } catch (JSONException e) {
+                    textInfo.setText("Ошибка");
+                    Log.d(LOG, e.toString());
+                }
             }
         }, new Response.ErrorListener() {
 
@@ -169,88 +224,37 @@ public class MainActivity extends AppCompatActivity {
             public void onErrorResponse(VolleyError error) {
                 textInfo.setText("Ошибка соединения");
                 Log.d(LOG, "Ошибка" + error.toString());
-              nextActivity();
+                nextActivity();
             }
         });
         queue.add(stringRequest);
-                writeData.commit();
-        textInfo.setText("Готово");
-            nextActivity();
-
-    /*
-    Некоторые разъяснения:
-
-    Пользователь будет видеть только логотип и статус бар который будет показывать состояние загрузки данных
-    При последующем запуске загрузки уже не будет (приложение запустится быстрее)
-
-     */
+        writeData.commit();
+        nextActivity();
     }
 
+    //переход к карте
+    public void nextActivity() {
 
-
-
-
-    //переход к следующиму активити
-    public  void  nextActivity(){
         Intent intent = new Intent(this, MapsActivity.class);
         startActivity(intent);
+        finish();
     }
 
-    // просмотреть все таблицы бд
-    public  void viewTables(SQLiteDatabase db){
-        Cursor c = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null);
-
-        if (c.moveToFirst()) {
-            while ( !c.isAfterLast() ) {
-               Log.d(LOG, c.getString(0));
-                c.moveToNext();
-            }
+    //проверка интернета
+    public static boolean isOnline(final Context context) {
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo wifiInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+        if (wifiInfo != null && wifiInfo.isConnected()) {
+            return true;
         }
-
+        wifiInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
+        if (wifiInfo != null && wifiInfo.isConnected()) {
+            return true;
+        }
+        wifiInfo = cm.getActiveNetworkInfo();
+        if (wifiInfo != null && wifiInfo.isConnected()) {
+            return true;
+        }
+        return false;
     }
-    //метод который выводит всю бд в консоль
-    public void viewDataBase(SQLiteDatabase db){
-        Cursor c = db.query(cityName, null, null, null, null, null, null);
-
-        // ставим позицию курсора на первую строку выборки
-        // если в выборке нет строк, вернется false
-        if (c.moveToFirst()) {
-
-            // определяем номера столбцов по имени в выборке
-            int idColIndex = c.getColumnIndex("id");
-            int nameColIndex = c.getColumnIndex("name");
-            int typeColIndex = c.getColumnIndex("type");
-            int latColIndex = c.getColumnIndex("lat");
-            int lonColIndex = c.getColumnIndex("lon");
-            int descriptColIndex = c.getColumnIndex("descript");
-            int imageColIndex = c.getColumnIndex("image");
-            int videoColIndex = c.getColumnIndex("video");
-            int count_peopleColIndex = c.getColumnIndex("count_people");
-            int summ_markColIndex = c.getColumnIndex("summ_mark");
-            int commentColIndex = c.getColumnIndex("comment");
-            int versionColIndex = c.getColumnIndex("version");
-
-            do {
-                // получаем значения по номерам столбцов и пишем все в лог
-                Log.d(LOG,
-                        "ID = " + c.getInt(idColIndex) +
-                                ", name = " + c.getString(nameColIndex) +
-                                ", type = " + c.getString(typeColIndex) +
-                                ", lat = " + c.getString(latColIndex) +
-                                ", lon = " + c.getString(lonColIndex) +
-                                ", descript = " + c.getString(descriptColIndex) +
-                                ", image = " + c.getString(imageColIndex) +
-                                ", video = " + c.getString(videoColIndex) +
-                                ", count_people = " + c.getString(count_peopleColIndex) +
-                                ", summ_mark = " + c.getString(summ_markColIndex) +
-                                ", comment = " + c.getString(commentColIndex) +
-                                ", version = " + c.getString(versionColIndex));
-                // переход на следующую строку
-                // а если следующей нет (текущая - последняя), то false - выходим из цикла
-            } while (c.moveToNext());
-        } else
-            Log.d(LOG, "0 rows");
-        c.close();
-    }
-
 }
