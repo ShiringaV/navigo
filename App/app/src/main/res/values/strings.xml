@@ -1,4 +1,13 @@
 <resources>
     <string name="app_name">NaviGO</string>
     <string name="title_activity_maps">Map</string>
+
+    <string-array name="drawer_items">
+        <item>Карта</item>
+        <item>Проложить маршрут</item>
+        <item>Настройки</item>
+    </string-array>
+    <string name="fragment_places_text">Карта</string>
+    <string name="fragment_route_text">Проложить маршрут</string>
+    <string name="fragment_settings_text">Настройки</string>
 </resources>
