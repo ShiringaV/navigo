@@ -1,30 +1,23 @@
 package navigo.app;
 
-import android.content.SharedPreferences;
-import android.database.Cursor;
+import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
+import android.preference.PreferenceManager;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.widget.DrawerLayout;
 import android.util.Log;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
 
-import com.google.android.gms.maps.CameraUpdateFactory;
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.MarkerOptions;
+import android.widget.ListView;
 
 import java.util.ArrayList;
 import static navigo.app.MainActivity.LOG;
 import static navigo.app.MainActivity.dbVersion;
 
-import android.os.Bundle;
+
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
-import android.support.v4.widget.DrawerLayout;
+
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -33,9 +26,15 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
 
-public class MapsActivity extends FragmentActivity implements  OnMapReadyCallback  {
+import org.osmdroid.api.IMapController;
+import org.osmdroid.config.Configuration;
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.MapView;
+import org.osmdroid.views.overlay.Marker;
 
-    private GoogleMap mMap;
+public class MapsActivity extends AppCompatActivity  {
+
    DBHelper dbHelper;
 
     private String[] mItemTitles;
@@ -48,12 +47,21 @@ public class MapsActivity extends FragmentActivity implements  OnMapReadyCallbac
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Context ctx = getApplicationContext();
+        //important! set your user agent to prevent getting banned from the osm servers
+        Configuration.getInstance().load(ctx, PreferenceManager.getDefaultSharedPreferences(ctx));
         setContentView(R.layout.activity_maps);
          //Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-              .findFragmentById(R.id.map);
-       mapFragment.getMapAsync(this);
+        MapView map = (MapView) findViewById(R.id.map);
+        map.setTileSource(TileSourceFactory.MAPNIK);
+        map.setMultiTouchControls(true);
 
+        IMapController mapController = map.getController();
+        mapController.setZoom(13);
+        GeoPoint startPoint = new GeoPoint(46.467360, 30.743843);
+        mapController.setCenter(startPoint);
+
+        createMarkers(map);
 
         mTitle = getTitle();
         mItemTitles = getResources().getStringArray(R.array.drawer_items);
@@ -72,11 +80,21 @@ public class MapsActivity extends FragmentActivity implements  OnMapReadyCallbac
         mDrawerLayout.addDrawerListener(mDrawerToggle);
         setupDrawerToggle();
     }
+    public void onResume(){
+        super.onResume();
+        //this will refresh the osmdroid configuration on resuming.
+        //if you make changes to the configuration, use
+        //SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        //Configuration.getInstance().save(this, prefs);
+        Configuration.getInstance().load(this, PreferenceManager.getDefaultSharedPreferences(this));
+    }
 
-    @Override
-    public void onMapReady(GoogleMap googleMap) {
+
+
+    public void createMarkers(MapView map) {
         Log.d(LOG, "создание карты");
-        mMap = googleMap;
+        Marker.ENABLE_TEXT_LABELS_WHEN_NO_IMAGE = true;
+        Marker m = new Marker(map);
         Log.d(LOG, "версия " + dbVersion );
         dbHelper = new DBHelper(this);
         SQLiteDatabase db = dbHelper.getWritableDatabase();
@@ -91,13 +109,15 @@ public class MapsActivity extends FragmentActivity implements  OnMapReadyCallbac
                 Double lon = Double.parseDouble(arrayData[1]);
                 String name = arrayData[2];
                 Log.d(LOG, "данные с массива " + lat + "  " + lon + "  " + name);
-                LatLng marker = new LatLng(lat, lon);
-                mMap.addMarker(new MarkerOptions().position(marker).title(name));
-        }
 
-        LatLng startPoint = new LatLng(46.467360, 30.743843);
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(startPoint));
-        mMap.moveCamera(CameraUpdateFactory.zoomTo(13));
+           // m.setTextLabelBackgroundColor(backgroundColor);
+           // m.setTextLabelFontSize(fontSizeDp);
+          //  m.setTextLabelForegroundColor(fontColor);
+            m.setTitle(name);
+            m.setIcon(null);
+            m.setPosition(new GeoPoint(lat,lon));
+            map.getOverlays().add(m);
+        }
     }
 
 
@@ -157,7 +177,7 @@ public class MapsActivity extends FragmentActivity implements  OnMapReadyCallbac
     @Override
     public void setTitle(CharSequence title) {
         mTitle = title;
-      // getSupportActionBar().setTitle(mTitle);
+       getSupportActionBar().setTitle(mTitle);
     }
 
     @Override
@@ -168,7 +188,7 @@ public class MapsActivity extends FragmentActivity implements  OnMapReadyCallbac
 
     void setupToolbar() {
         mToolbar = (Toolbar) findViewById(R.id.toolbar);
-      //  setSupportActionBar(mToolbar);
+        setSupportActionBar(mToolbar);
     }
 
     void setupDrawerToggle() {
