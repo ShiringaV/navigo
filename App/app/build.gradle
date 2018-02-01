@@ -29,7 +29,13 @@ dependencies {
     compile 'com.android.support.constraint:constraint-layout:1.0.2'
     compile 'com.google.android.gms:play-services-maps:11.0.4'
     testCompile 'junit:junit:4.12'
+<<<<<<< HEAD
     compile 'org.osmdroid:osmdroid-android:5.6.5'
+    compile 'org.osmdroid:osmdroid-mapsforge:5.6.5'
+    compile 'org.osmdroid:osmdroid-geopackage:5.6.5'
+    compile 'org.osmdroid:osmdroid-third-party:5.6.5'
+=======
+>>>>>>> parent of 73341b5... test osm
 }
 repositories {
     jcenter()

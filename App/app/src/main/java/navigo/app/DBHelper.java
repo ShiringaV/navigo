@@ -8,6 +8,7 @@ import android.util.Log;
 
 import java.util.ArrayList;
 
+import static navigo.app.MainActivity.LOG;
 import static navigo.app.MainActivity.cityName;
 import static navigo.app.MainActivity.dbVersion;
 
@@ -18,14 +19,10 @@ import static navigo.app.MainActivity.dbVersion;
 
 public class DBHelper extends SQLiteOpenHelper {
 
-    final String LOG = "myLog";
-
     public DBHelper(Context context) {
         // конструктор суперкласса
         super(context, "navigo", null, dbVersion);
     }
-
-
 
     @Override
     public void onCreate(SQLiteDatabase db) {
@@ -61,7 +58,6 @@ public class DBHelper extends SQLiteOpenHelper {
                 + "version integer" + ");");
     }
 
-
     //удаление ненужной таблицы
     public void dropTable(SQLiteDatabase db){
         db.execSQL("drop table "+ cityName);
@@ -74,7 +70,6 @@ public class DBHelper extends SQLiteOpenHelper {
         // ставим позицию курсора на первую строку выборки
         // если в выборке нет строк, вернется false
         if (c.moveToFirst()) {
-
             // определяем номера столбцов по имени в выборке
             int idColIndex = c.getColumnIndex("id");
             int nameColIndex = c.getColumnIndex("name");
@@ -109,21 +104,19 @@ public class DBHelper extends SQLiteOpenHelper {
             }
 
             if (data == true) {
-
-
+                Log.d(LOG, "data == true");
                 ArrayList<String[]> mapData = new ArrayList<String[]>();
                do {
                    String [] mapValues = {c.getString(latColIndex), c.getString(lonColIndex), c.getString(nameColIndex)};
                    mapData.add(mapValues);
                 }
                 while (c.moveToNext());
+                Log.d(LOG, "возврат даных");
                 return mapData;
             }
-
         } else {
              if (log == true) Log.d(LOG, "0 rows");
         }
-
         c.close();
     return null;
     }
@@ -131,14 +124,11 @@ public class DBHelper extends SQLiteOpenHelper {
     // просмотреть все таблицы бд
     public  void viewTables(SQLiteDatabase db){
         Cursor c = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null);
-
         if (c.moveToFirst()) {
             while ( !c.isAfterLast() ) {
                 Log.d(LOG, c.getString(0));
                 c.moveToNext();
             }
         }
-
     }
-
 }

@@ -16,19 +16,15 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-
-
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener{
 
@@ -40,11 +36,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     ImageView errorImage;
     ProgressBar bar;
     Button btnYes, btnNo;
-
     SharedPreferences sPref;
     boolean online;                     //проверка сети
-    boolean first = false;              //первый запуск приложения
-
+    boolean first = false;
     DBHelper dbHelper;
     SQLiteDatabase db;
 
@@ -64,14 +58,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         btnNo = (Button) findViewById(R.id.buttonNo);
         btnNo.setText("Нет, спасибо");
         btnNo.setVisibility(View.INVISIBLE);
-
         cityName = "odessa";
-        url = "http://navigo.zzz.com.ua/index.php?city=" + cityName;
         online = isOnline(this);
 
         sPref = getPreferences(MODE_PRIVATE);
         SharedPreferences.Editor writeData = sPref.edit();
-
         Log.d(LOG, "проверка на первый запуск");
         String getVersion = sPref.getString("dataBase", "");
 
@@ -86,7 +77,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 writeData.putString("dataBase", "1");
                 writeData.commit();
             }
-
         } else {
             dbVersion = Integer.parseInt(getVersion);
         }
@@ -94,7 +84,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (online == true) {
             Log.d(LOG, "Есть интернет");
             String currentCity = sPref.getString(cityName, "");
-
             if (currentCity != "") {
                 Log.d(LOG, "удаляем таблицу");
                 dbVersion = Integer.parseInt(sPref.getString("dataBase", ""));
@@ -109,17 +98,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 btnNo.setVisibility(View.VISIBLE);
                 btnYes.setOnClickListener(this);
                 btnNo.setOnClickListener(this);
-
             }
-
-
         } else {
             Log.d(LOG, "нет сети, данные есть");
             if (first == false) {
                 nextActivity();
             }
         }
-
     }
 
     @Override
@@ -129,9 +114,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 Log.d(LOG, "Идет установка карты");
                 textInfo.setText("Идет установка карты");
                 bar.setVisibility(View.VISIBLE);
-                    bar.setProgress(100);
-                    SystemClock.sleep(500);
-
+                bar.setProgress(100);
+                SystemClock.sleep(500);
                 serverConnect();
                 break;
             case R.id.buttonNo:
@@ -143,98 +127,93 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private void serverConnect(){
+
         sPref = getPreferences(MODE_PRIVATE);
         SharedPreferences.Editor writeData = sPref.edit();
-
         Log.d(LOG, "файл пуст, идет создание...");
         writeData.putString(cityName, "данные по городу " + cityName + " существуют");
         dbVersion = Integer.parseInt(sPref.getString("dataBase", "")) + 1;
         writeData.putString("dataBase", String.valueOf(dbVersion));
         Log.d(LOG, "Текущая версия = " + dbVersion);
+        Log.d(LOG, "Пытаемся подключиться к серверу");
 
         dbHelper = new DBHelper(this);
-
-        Log.d(LOG, "Пытаемся подключиться к серверу");
         RequestQueue queue = Volley.newRequestQueue(this);
-
+        url = "http://navigo.zzz.com.ua/index.php?city=" + cityName;
         StringRequest stringRequest = new StringRequest(Request.Method.GET, url, new Response.Listener<String>() {
-            @Override
-            public void onResponse(String response) {
-                JSONObject jsonObject;
-                String[] array_result = response.split("end_json_string");
-                String result = array_result[0];
-                Log.d(LOG, "Ответ сервера " + result.toString());
+                    @Override
+                    public void onResponse(String response) {
+                        JSONObject jsonObject;
+                        String[] array_result = response.split("end_json_string");
+                        String result = array_result[0];
+                        Log.d(LOG, "Ответ сервера " + result.toString());
 
-                try {
-                    Log.d(LOG, "идет создание бд");
-                    ContentValues dbValue = new ContentValues();
-                    db = dbHelper.getWritableDatabase();
+                        try {
+                            Log.d(LOG, "идет создание бд");
+                            ContentValues dbValue = new ContentValues();
+                            db = dbHelper.getWritableDatabase();
+                            Log.d(LOG, "создание JSON объекта");
+                            jsonObject = new JSONObject(result);
+                            JSONArray city = jsonObject.getJSONArray(cityName);
 
-                    Log.d(LOG, "создание JSON объекта");
-                    jsonObject = new JSONObject(result);
-                    JSONArray city = jsonObject.getJSONArray(cityName);
+                            for (int i = 0; i < city.length(); i++) {
+                                //Следущие дынные будут писаться в базу SQLite
+                                String name = city.getJSONObject(i).getString("name");               //название достопримечательности
+                                String type = city.getJSONObject(i).getString("type");               //тип достопримечательности
+                                String lat = city.getJSONObject(i).getString("lat");                 //широта
+                                String lon = city.getJSONObject(i).getString("lon");                 //долгота
+                                String descript = city.getJSONObject(i).getString("descript");       //описание
+                                String image = city.getJSONObject(i).getString("image");             //путь к картинке
+                                String video = city.getJSONObject(i).getString("video");             //путь к видео
+                                int count_people = city.getJSONObject(i).getInt("count_people");     //количество проголосовавших людей
+                                int summ_mark = city.getJSONObject(i).getInt("summ_mark");           //общая сумма голосов
+                                String comment = city.getJSONObject(i).getString("comment");         //комментарии
 
-                    for (int i = 0; i < city.length(); i++) {
-                        //Следущие дынные будут писаться в базу SQLite
-                        String name = city.getJSONObject(i).getString("name");               //название достопримечательности
-                        String type = city.getJSONObject(i).getString("type");               //тип достопримечательности
-                        String lat = city.getJSONObject(i).getString("lat");                 //широта
-                        String lon = city.getJSONObject(i).getString("lon");                 //долгота
-                        String descript = city.getJSONObject(i).getString("descript");       //описание
-                        String image = city.getJSONObject(i).getString("image");             //путь к картинке
-                        String video = city.getJSONObject(i).getString("video");             //путь к видео
-                        int count_people = city.getJSONObject(i).getInt("count_people");     //количество проголосовавших людей
-                        int summ_mark = city.getJSONObject(i).getInt("summ_mark");           //общая сумма голосов
-                        String comment = city.getJSONObject(i).getString("comment");         //комментарии
+                                Log.d(LOG, "Данные с сервера: " +
+                                        " Название: " + name +
+                                        ", Тип: " + type +
+                                        ", Широта: " + lat +
+                                        ", Долгота:" + lon +
+                                        ", Описание: " + descript + "...");
+                                dbValue.put("name", name);
+                                dbValue.put("type", type);
+                                dbValue.put("lat", lat);
+                                dbValue.put("lon", lon);
+                                dbValue.put("descript", descript);
+                                dbValue.put("image", image);
+                                dbValue.put("video", video);
+                                dbValue.put("count_people", count_people);
+                                dbValue.put("summ_mark", summ_mark);
+                                dbValue.put("comment", comment);
+                                dbValue.put("version", "null");
 
-                        Log.d(LOG, "Данные с сервера: " +
-                                " Название: " + name +
-                                ", Тип: " + type +
-                                ", Широта: " + lat +
-                                ", Долгота:" + lon +
-                                ", Описание: " + descript + "...");
-
-                        dbValue.put("name", name);
-                        dbValue.put("type", type);
-                        dbValue.put("lat", lat);
-                        dbValue.put("lon", lon);
-                        dbValue.put("descript", descript);
-                        dbValue.put("image", image);
-                        dbValue.put("video", video);
-                        dbValue.put("count_people", count_people);
-                        dbValue.put("summ_mark", summ_mark);
-                        dbValue.put("comment", comment);
-                        dbValue.put("version", "null");
-
-                        long rowID = db.insert(cityName, null, dbValue);
-                        Log.d(LOG, "строка добавлена, id = " + rowID);
+                                long rowID = db.insert(cityName, null, dbValue);
+                                Log.d(LOG, "строка добавлена, id = " + rowID);
+                            }
+                            dbHelper.viewDataBase(db, true, false);
+                            dbHelper.viewTables(db);
+                        } catch (JSONException e) {
+                            Log.d(LOG, e.toString());
+                        }
                     }
+                }, new Response.ErrorListener() {
 
-                    dbHelper.viewDataBase(db, true, false);
-                    dbHelper.viewTables(db);
-
-                } catch (JSONException e) {
-                    textInfo.setText("Ошибка");
-                    Log.d(LOG, e.toString());
-                }
-            }
-        }, new Response.ErrorListener() {
-
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                textInfo.setText("Ошибка соединения");
-                Log.d(LOG, "Ошибка" + error.toString());
-                nextActivity();
-            }
-        });
-        queue.add(stringRequest);
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        textInfo.setText("Ошибка соединения");
+                        Log.d(LOG, "Ошибка" + error.toString());
+                        nextActivity();
+                    }
+                });
+                queue.add(stringRequest);
         writeData.commit();
+        SystemClock.sleep(300);
+        Log.d(LOG, "nextActivity");
         nextActivity();
     }
 
     //переход к карте
     public void nextActivity() {
-
         Intent intent = new Intent(this, MapsActivity.class);
         startActivity(intent);
         finish();
@@ -257,6 +236,4 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
         return false;
     }
-
-
 }
