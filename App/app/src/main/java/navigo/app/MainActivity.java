@@ -16,17 +16,22 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
+import org.osmdroid.views.MapView;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener{
+
+public class MainActivity extends AppCompatActivity {
 
     final static String LOG = "myLog";   //константа для логов
     public static String cityName;      //название города - опредиляется координатами
@@ -34,11 +39,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     String url;                         //наш домен
     TextView textInfo;
     ImageView errorImage;
-    ProgressBar bar;
-    Button btnYes, btnNo;
     SharedPreferences sPref;
     boolean online;                     //проверка сети
-    boolean first = false;
+    boolean first = false;              //первый запуск приложения
+
     DBHelper dbHelper;
     SQLiteDatabase db;
 
@@ -48,21 +52,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         setContentView(R.layout.activity_main);
 
         textInfo = (TextView) findViewById(R.id.textInfo);
-        bar = (ProgressBar) findViewById(R.id.progressBar);
-        bar.setVisibility(View.INVISIBLE);
         errorImage = (ImageView) findViewById(R.id.error);
         errorImage.setVisibility(View.INVISIBLE);
-        btnYes = (Button) findViewById(R.id.buttonYes);
-        btnYes.setText("Да, установить");
-        btnYes.setVisibility(View.INVISIBLE);
-        btnNo = (Button) findViewById(R.id.buttonNo);
-        btnNo.setText("Нет, спасибо");
-        btnNo.setVisibility(View.INVISIBLE);
+
         cityName = "odessa";
+        url = "http://navigo.zzz.com.ua/index.php?city=" + cityName;
         online = isOnline(this);
 
         sPref = getPreferences(MODE_PRIVATE);
         SharedPreferences.Editor writeData = sPref.edit();
+
         Log.d(LOG, "проверка на первый запуск");
         String getVersion = sPref.getString("dataBase", "");
 
@@ -77,6 +76,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 writeData.putString("dataBase", "1");
                 writeData.commit();
             }
+
         } else {
             dbVersion = Integer.parseInt(getVersion);
         }
@@ -84,6 +84,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (online == true) {
             Log.d(LOG, "Есть интернет");
             String currentCity = sPref.getString(cityName, "");
+
             if (currentCity != "") {
                 Log.d(LOG, "удаляем таблицу");
                 dbVersion = Integer.parseInt(sPref.getString("dataBase", ""));
@@ -91,13 +92,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 db = dbHelper.getWritableDatabase();
                 dbHelper.dropTable(db);
                 serverConnect();
-            } else {
-                Log.d(LOG, "Установить карту?");
-                textInfo.setText("Установить offline карту города " + cityName + "?" );
-                btnYes.setVisibility(View.VISIBLE);
-                btnNo.setVisibility(View.VISIBLE);
-                btnYes.setOnClickListener(this);
-                btnNo.setOnClickListener(this);
+            }
+            else {
+                serverConnect();
             }
         } else {
             Log.d(LOG, "нет сети, данные есть");
@@ -105,115 +102,106 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 nextActivity();
             }
         }
+
     }
 
-    @Override
-    public  void onClick(View v){
-        switch (v.getId()) {
-            case R.id.buttonYes:
-                Log.d(LOG, "Идет установка карты");
-                textInfo.setText("Идет установка карты");
-                bar.setVisibility(View.VISIBLE);
-                bar.setProgress(100);
-                SystemClock.sleep(500);
-                serverConnect();
-                break;
-            case R.id.buttonNo:
-                Log.d(LOG, "Не устанавливать");
-                textInfo.setText("Только online карты");
-                serverConnect();
-                break;
-        }
-    }
+
 
     private void serverConnect(){
-
         sPref = getPreferences(MODE_PRIVATE);
         SharedPreferences.Editor writeData = sPref.edit();
+
         Log.d(LOG, "файл пуст, идет создание...");
         writeData.putString(cityName, "данные по городу " + cityName + " существуют");
         dbVersion = Integer.parseInt(sPref.getString("dataBase", "")) + 1;
         writeData.putString("dataBase", String.valueOf(dbVersion));
         Log.d(LOG, "Текущая версия = " + dbVersion);
-        Log.d(LOG, "Пытаемся подключиться к серверу");
 
         dbHelper = new DBHelper(this);
+
+        Log.d(LOG, "Пытаемся подключиться к серверу");
         RequestQueue queue = Volley.newRequestQueue(this);
-        url = "http://navigo.zzz.com.ua/index.php?city=" + cityName;
+
         StringRequest stringRequest = new StringRequest(Request.Method.GET, url, new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        JSONObject jsonObject;
-                        String[] array_result = response.split("end_json_string");
-                        String result = array_result[0];
-                        Log.d(LOG, "Ответ сервера " + result.toString());
+            @Override
+            public void onResponse(String response) {
+                JSONObject jsonObject;
+                String[] array_result = response.split("end_json_string");
+                String result = array_result[0];
+                Log.d(LOG, "Ответ сервера " + result.toString());
 
-                        try {
-                            Log.d(LOG, "идет создание бд");
-                            ContentValues dbValue = new ContentValues();
-                            db = dbHelper.getWritableDatabase();
-                            Log.d(LOG, "создание JSON объекта");
-                            jsonObject = new JSONObject(result);
-                            JSONArray city = jsonObject.getJSONArray(cityName);
+                try {
+                    Log.d(LOG, "идет создание бд");
+                    ContentValues dbValue = new ContentValues();
+                    db = dbHelper.getWritableDatabase();
 
-                            for (int i = 0; i < city.length(); i++) {
-                                //Следущие дынные будут писаться в базу SQLite
-                                String name = city.getJSONObject(i).getString("name");               //название достопримечательности
-                                String type = city.getJSONObject(i).getString("type");               //тип достопримечательности
-                                String lat = city.getJSONObject(i).getString("lat");                 //широта
-                                String lon = city.getJSONObject(i).getString("lon");                 //долгота
-                                String descript = city.getJSONObject(i).getString("descript");       //описание
-                                String image = city.getJSONObject(i).getString("image");             //путь к картинке
-                                String video = city.getJSONObject(i).getString("video");             //путь к видео
-                                int count_people = city.getJSONObject(i).getInt("count_people");     //количество проголосовавших людей
-                                int summ_mark = city.getJSONObject(i).getInt("summ_mark");           //общая сумма голосов
-                                String comment = city.getJSONObject(i).getString("comment");         //комментарии
+                    Log.d(LOG, "создание JSON объекта");
+                    jsonObject = new JSONObject(result);
+                    JSONArray city = jsonObject.getJSONArray(cityName);
 
-                                Log.d(LOG, "Данные с сервера: " +
-                                        " Название: " + name +
-                                        ", Тип: " + type +
-                                        ", Широта: " + lat +
-                                        ", Долгота:" + lon +
-                                        ", Описание: " + descript + "...");
-                                dbValue.put("name", name);
-                                dbValue.put("type", type);
-                                dbValue.put("lat", lat);
-                                dbValue.put("lon", lon);
-                                dbValue.put("descript", descript);
-                                dbValue.put("image", image);
-                                dbValue.put("video", video);
-                                dbValue.put("count_people", count_people);
-                                dbValue.put("summ_mark", summ_mark);
-                                dbValue.put("comment", comment);
-                                dbValue.put("version", "null");
+                    for (int i = 0; i < city.length(); i++) {
+                        //Следущие дынные будут писаться в базу SQLite
+                        String name = city.getJSONObject(i).getString("name");               //название достопримечательности
+                        String type = city.getJSONObject(i).getString("type");               //тип достопримечательности
+                        String lat = city.getJSONObject(i).getString("lat");                 //широта
+                        String lon = city.getJSONObject(i).getString("lon");                 //долгота
+                        String descript = city.getJSONObject(i).getString("descript");       //описание
+                        String image = city.getJSONObject(i).getString("image");             //путь к картинке
+                        String video = city.getJSONObject(i).getString("video");             //путь к видео
+                        int count_people = city.getJSONObject(i).getInt("count_people");     //количество проголосовавших людей
+                        int summ_mark = city.getJSONObject(i).getInt("summ_mark");           //общая сумма голосов
+                        String comment = city.getJSONObject(i).getString("comment");         //комментарии
 
-                                long rowID = db.insert(cityName, null, dbValue);
-                                Log.d(LOG, "строка добавлена, id = " + rowID);
-                            }
-                            dbHelper.viewDataBase(db, true, false);
-                            dbHelper.viewTables(db);
-                        } catch (JSONException e) {
-                            Log.d(LOG, e.toString());
-                        }
+                        Log.d(LOG, "Данные с сервера: " +
+                                " Название: " + name +
+                                ", Тип: " + type +
+                                ", Широта: " + lat +
+                                ", Долгота:" + lon +
+                                ", Описание: " + descript + "...");
+
+                        dbValue.put("name", name);
+                        dbValue.put("type", type);
+                        dbValue.put("lat", lat);
+                        dbValue.put("lon", lon);
+                        dbValue.put("descript", descript);
+                        dbValue.put("image", image);
+                        dbValue.put("video", video);
+                        dbValue.put("count_people", count_people);
+                        dbValue.put("summ_mark", summ_mark);
+                        dbValue.put("comment", comment);
+                        dbValue.put("version", "null");
+
+                        long rowID = db.insert(cityName, null, dbValue);
+                        Log.d(LOG, "строка добавлена, id = " + rowID);
                     }
-                }, new Response.ErrorListener() {
 
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        textInfo.setText("Ошибка соединения");
-                        Log.d(LOG, "Ошибка" + error.toString());
-                        nextActivity();
-                    }
-                });
-                queue.add(stringRequest);
+                    dbHelper.viewDataBase(db, true, false);
+                    dbHelper.viewTables(db);
+
+                } catch (JSONException e) {
+                    textInfo.setText("Ошибка");
+                    Log.d(LOG, e.toString());
+                }
+            }
+        }, new Response.ErrorListener() {
+
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                textInfo.setText("Ошибка соединения");
+                Log.d(LOG, "Ошибка" + error.toString());
+                nextActivity();
+            }
+        });
+        queue.add(stringRequest);
         writeData.commit();
-        SystemClock.sleep(300);
+        SystemClock.sleep(500);
         Log.d(LOG, "nextActivity");
         nextActivity();
     }
 
     //переход к карте
     public void nextActivity() {
+
         Intent intent = new Intent(this, MapsActivity.class);
         startActivity(intent);
         finish();
@@ -236,4 +224,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
         return false;
     }
+
+
 }

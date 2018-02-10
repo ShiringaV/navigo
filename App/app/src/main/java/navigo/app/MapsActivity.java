@@ -1,14 +1,18 @@
 package navigo.app;
 
+
+import android.app.FragmentTransaction;
+import android.content.SharedPreferences;
 import android.database.sqlite.SQLiteDatabase;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.widget.DrawerLayout;
-import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.widget.Button;
 import android.widget.ListView;
 import java.util.ArrayList;
 import static navigo.app.MainActivity.LOG;
+import static navigo.app.MainActivity.cityName;
 import static navigo.app.MainActivity.dbVersion;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
@@ -17,6 +21,7 @@ import android.support.v7.widget.Toolbar;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.TextView;
 import org.osmdroid.api.IMapController;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
@@ -34,23 +39,42 @@ public class MapsActivity extends FragmentActivity  {
     private CharSequence mTitle;
     private ActionBarDrawerToggle mDrawerToggle;
     SQLiteDatabase db;
-
+    SharedPreferences sPref;
+    Fragment firstStartFragment;
+    FragmentManager fragmentManager;
+    SharedPreferences.Editor writeData;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_maps);
-         //Obtain the SupportMapFragment and get notified when the map is ready to be used.
+        fragmentManager = getSupportFragmentManager();
+        sPref = getPreferences(MODE_PRIVATE);
+        writeData = sPref.edit();
+
         map = (MapView) findViewById(R.id.map);
         map.setTileSource(TileSourceFactory.MAPNIK);
-        map.setMultiTouchControls(true);
+        firstStartFragment = new FirstStartFragment(fragmentManager, writeData, map, this);
+
+        String casheCity = sPref.getString(cityName+"cache", "");
+        Log.d(LOG, "Проверка кэша");
+        if (casheCity == "") {
+            fragmentManager.beginTransaction().add(R.id.mapLayout, firstStartFragment).commit();
+            Log.d(LOG, "Установить карту?");
+
+        }
+
+
         Log.d(LOG, "создание OSM карты");
         IMapController mapController = map.getController();
-        mapController.setZoom(13);
+        mapController.setZoom(15);
         GeoPoint startPoint = new GeoPoint(46.478145, 30.741650);
         mapController.setCenter(startPoint);
 
         createMarker();
+
+        map.setMinZoomLevel(13);
+        map.setMultiTouchControls(true);
+
 
         mTitle = getTitle();
         mItemTitles = getResources().getStringArray(R.array.drawer_items);
@@ -67,35 +91,36 @@ public class MapsActivity extends FragmentActivity  {
         setupDrawerToggle();
     }
 
-      public void createMarker(){
-           Log.d(LOG, "создание карты");
-           Marker.ENABLE_TEXT_LABELS_WHEN_NO_IMAGE = true;
-           Log.d(LOG, "версия " + dbVersion );
-           dbHelper = new DBHelper(this);
-           db = dbHelper.getWritableDatabase();
-           ArrayList<String[]> mapData = new ArrayList<String[]>();
-           Log.d(LOG, "запрос данных");
-           mapData = dbHelper.viewDataBase(db, false, true);
-           if (mapData != null) {
-               String[] arrayData = new String[mapData.size()];
-               Log.d(LOG, "добавляем маркер");
-               for (int i = 0; i < mapData.size(); i++) {
-                   arrayData = mapData.get(i);
-                   Double lat = Double.parseDouble(arrayData[0]);
-                   Double lon = Double.parseDouble(arrayData[1]);
-                   String name = arrayData[2];
-                   Log.d(LOG, "данные с массива " + lat + "  " + lon + "  " + name);
-                   Marker m = new Marker(map);
-                   // m.setTextLabelBackgroundColor();
-                   // m.setTextLabelFontSize(fontSizeDp);
-                   //  m.setTextLabelForegroundColor(fontColor);
-                   m.setTitle(name);
-                   m.setIcon(getResources().getDrawable(R.drawable.ic_add_location_black_24dp));
-                   m.setPosition(new GeoPoint(lat, lon));
-                   map.getOverlays().add(m);
-               }
-          } else Log.d(LOG, "нет данных");
-        }
+
+    public void createMarker(){
+        Log.d(LOG, "создание карты");
+        Marker.ENABLE_TEXT_LABELS_WHEN_NO_IMAGE = true;
+        Log.d(LOG, "версия " + dbVersion );
+        dbHelper = new DBHelper(this);
+        db = dbHelper.getWritableDatabase();
+        ArrayList<String[]> mapData = new ArrayList<String[]>();
+        Log.d(LOG, "запрос данных");
+        mapData = dbHelper.viewDataBase(db, false, true);
+        if (mapData != null) {
+            String[] arrayData = new String[mapData.size()];
+            Log.d(LOG, "добавляем маркер");
+            for (int i = 0; i < mapData.size(); i++) {
+                arrayData = mapData.get(i);
+                Double lat = Double.parseDouble(arrayData[0]);
+                Double lon = Double.parseDouble(arrayData[1]);
+                String name = arrayData[2];
+                Log.d(LOG, "данные с массива " + lat + "  " + lon + "  " + name);
+                Marker m = new Marker(map);
+                // m.setTextLabelBackgroundColor();
+                // m.setTextLabelFontSize(fontSizeDp);
+                //  m.setTextLabelForegroundColor(fontColor);
+                m.setTitle(name);
+                m.setIcon(getResources().getDrawable(R.drawable.ic_add_location_black_24dp));
+                m.setPosition(new GeoPoint(lat, lon));
+                map.getOverlays().add(m);
+            }
+        } else Log.d(LOG, "нет данных");
+    }
 
     // формируем массив с данными для адаптера
     private ItemModel[] fillDataModel() {
@@ -113,7 +138,6 @@ public class MapsActivity extends FragmentActivity  {
         @Override
         public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
             Fragment fragment = null;
-            FragmentManager fragmentManager = getSupportFragmentManager();
             // на основании выбранного элемента меню
             // вызываем соответственный ему фрагмент
             switch (position) {
@@ -156,7 +180,7 @@ public class MapsActivity extends FragmentActivity  {
     @Override
     public void setTitle(CharSequence title) {
         mTitle = title;
-      // getSupportActionBar().setTitle(mTitle);
+        // getSupportActionBar().setTitle(mTitle);
     }
 
     @Override
@@ -167,7 +191,7 @@ public class MapsActivity extends FragmentActivity  {
 
     void setupToolbar() {
         mToolbar = (Toolbar) findViewById(R.id.toolbar);
-      // setSupportActionBar(mToolbar);
+        // setSupportActionBar(mToolbar);
     }
 
     void setupDrawerToggle() {
