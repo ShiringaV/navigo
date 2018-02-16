@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">NaviGO</string>
+    <string name="title_activity_maps">Map</string>
+
+    <string-array name="drawer_items">
+        <item>Карта</item>
+        <item>Мои места</item>
+        <item>Проложить маршрут</item>
+        <item>offline Карты</item>
+        <item>Настройки</item>
+    </string-array>
+    <string name="fragment_map_text">Карта</string>
+    <string name="fragment_places_text">Мои места</string>
+    <string name="fragment_route_text">Проложить маршрут</string>
+    <string name="fragment_offline_text">offline Карты</string>
+    <string name="fragment_settings_text">Настройки</string>
+</resources>
